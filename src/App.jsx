@@ -1,7 +1,8 @@
 import "./App.css";
+import DepositPage from "./modules/deposit";
 
 function App() {
-  return <></>;
+  return <DepositPage />;
 }
 
 export default App;
