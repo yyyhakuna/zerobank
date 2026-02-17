@@ -1,4 +1,3 @@
-import React from "react";
 import { Header } from "./components/Header";
 import { DepositCard } from "./components/DepositCard";
 import { PositionsTable } from "./components/PositionsTable";

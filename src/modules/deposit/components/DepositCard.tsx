@@ -1,11 +1,19 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowDown, ChevronDown } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { VALUETOKENOBJECTS } from "../../../const";
 import { TokenSearchModal } from "./TokenSearchModal";
 import { Token } from "../../../interface";
 import { formatUnits, parseUnits, Address } from "viem";
-import { useBalance, useConnection, useReadContract } from "wagmi";
+import {
+  useBalance,
+  useConnection,
+  useReadContract,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
 import { useDepositStore } from "../store";
 import { ZEROBANK_LAUNCHPAD_ADDRESS } from "../../../const";
 import ZeroBankABI from "../../../assets/abis/ZeroBank.json";
@@ -115,7 +123,63 @@ export const DepositCard = () => {
       )
     : "";
 
-  const fee = 0; // Mock Fee
+  const { data: feeData } = useReadContract({
+    address: ZEROBANK_LAUNCHPAD_ADDRESS as Address,
+    abi: ZeroBankABI,
+    functionName: "calBorrowFee",
+    args: [
+      selectedBorrowToken?.address as Address,
+      borrowAmountData ? (borrowAmountData as bigint) : 0n,
+    ],
+    query: {
+      enabled: !!selectedBorrowToken?.address,
+    },
+  });
+
+  const fee = feeData ? (Number(feeData) / 100).toFixed(2) : "0.00";
+
+  const queryClient = useQueryClient();
+  const {
+    writeContract,
+    data: hash,
+    isPending,
+  } = useWriteContract({
+    mutation: {
+      onError: (error) => {
+        toast.error(`Transaction Failed: ${error.message}`);
+      },
+    },
+  });
+
+  const {
+    isLoading: isConfirming,
+    isSuccess: isConfirmed,
+    isError: isConfirmError,
+  } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  useEffect(() => {
+    if (isConfirmed) {
+      toast.success("Transaction Successful!");
+      queryClient.invalidateQueries();
+      setDepositAmount("");
+    } else if (isConfirmError) {
+      toast.error("Transaction Failed!");
+    }
+  }, [isConfirmed, isConfirmError, queryClient]);
+
+  const handleShortAsset = () => {
+    if (!selectedBorrowToken?.address || !depositAmount) return;
+
+    writeContract({
+      address: ZEROBANK_LAUNCHPAD_ADDRESS as Address,
+      abi: ZeroBankABI,
+      functionName: "shortToken",
+      args: [selectedBorrowToken.address as Address, BigInt(ltv), 9000n],
+      value: parseUnits(depositAmount, 18),
+    });
+  };
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -125,7 +189,7 @@ export const DepositCard = () => {
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-600/5 rounded-full blur-3xl -z-10"></div>
 
         <h2 className="text-xl font-bold text-white mb-6 tracking-wide flex items-center gap-2">
-          <span className="text-purple-400">Deposit</span>
+          <span className="text-purple-400">Short</span>
         </h2>
 
         <div className="flex flex-col gap-4 relative">
@@ -231,20 +295,43 @@ export const DepositCard = () => {
         </div>
 
         {/* Stats */}
-        <div className="mt-8 space-y-3 bg-[#0D0B14]/50 p-4 rounded-xl border border-slate-800/50">
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Loan to Value (LTV)</span>
-            <span className="text-white font-mono">{ltv}%</span>
+        <div className="mt-8 space-y-4 bg-[#0D0B14]/50 p-4 rounded-xl border border-slate-800/50">
+          <div className="space-y-1">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-400">Loan to Value (LTV)</span>
+              <span className="text-white font-mono">{ltv}%</span>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              The ratio of your loan to the value of your collateral. Higher LTV
+              means higher risk of liquidation. Max LTV is 70%.
+            </p>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Borrowed Fee</span>
-            <span className="text-green-400 font-mono">{fee}%</span>
+
+          <div className="space-y-1">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-400">Borrowed Fee</span>
+              <span className="text-green-400 font-mono">{fee}%</span>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              A one-time fee charged when borrowing, calculated based on the
+              current utilization rate of the pool.
+            </p>
           </div>
         </div>
 
         {/* Action Button */}
-        <button className="w-full mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-purple-900/20 transform transition-all active:scale-[0.98] border border-white/10 uppercase tracking-wider">
-          Short Asset
+        <button
+          onClick={handleShortAsset}
+          disabled={
+            !depositAmount ||
+            !selectedBorrowToken ||
+            isPending ||
+            isConfirming ||
+            !borrowAmount
+          }
+          className="w-full mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-purple-900/20 transform transition-all active:scale-[0.98] border border-white/10 uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isPending || isConfirming ? "Confirming..." : "Short Asset"}
         </button>
       </div>
 

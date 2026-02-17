@@ -30,7 +30,7 @@ export const Header = () => {
         </div>
 
         <nav className="hidden md:flex items-center gap-6">
-          {["Home", "Discover", "Vault"].map((item) => (
+          {["Short", "Vault"].map((item) => (
             <button
               key={item}
               className="text-slate-400 hover:text-white font-medium transition-colors text-sm uppercase tracking-wide"
