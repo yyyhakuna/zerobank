@@ -6,7 +6,8 @@ import { VALUETOKENOBJECTS } from "../../../const";
 import { TokenSearchModal } from "./TokenSearchModal";
 import { Token } from "../../../interface";
 import { formatUnits } from "viem";
-import { useAccount, useBalance, useConnection } from "wagmi";
+import { useBalance, useConnection } from "wagmi";
+import { useDepositStore } from "../store";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -83,9 +84,8 @@ export const DepositCard = () => {
   const [selectedDepositToken, setSelectedDepositToken] = useState<Token>(
     VALUETOKENOBJECTS[0],
   );
-  const [selectedBorrowToken, setSelectedBorrowToken] = useState<Token | null>(
-    null,
-  );
+
+  const { selectedBorrowToken, setSelectedBorrowToken } = useDepositStore();
 
   const [isDepositDropdownOpen, setIsDepositDropdownOpen] = useState(false);
   const [isBorrowModalOpen, setIsBorrowModalOpen] = useState(false);
@@ -199,7 +199,7 @@ export const DepositCard = () => {
                       </span>
                     </div>
                   ) : (
-                    <span className="text-sm text-slate-400">Select Asset</span>
+                    <span className="text-sm text-slate-400">Select</span>
                   )}
                   <ChevronDown size={14} />
                 </button>

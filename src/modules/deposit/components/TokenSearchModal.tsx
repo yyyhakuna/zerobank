@@ -1,6 +1,19 @@
-import React, { useState } from "react";
-import { X, Search } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Search, Loader2 } from "lucide-react";
+import { useReadContracts } from "wagmi";
+import { formatUnits, isAddress, erc20Abi, Address } from "viem";
 import { Token, TokenSearchModalProps } from "../../../interface";
+import { ZEROBANK_LAUNCHPAD_ADDRESS } from "../../../const";
+import ZeroBankABI from "../../../assets/abis/ZeroBank.json";
+
+interface TokenWithPool extends Token {
+  poolInfo?: {
+    ethVault: bigint;
+    tokenVault: bigint;
+    borrowedTokenAmount: bigint;
+    borrowedRate: bigint;
+  };
+}
 
 export const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
   isOpen,
@@ -8,27 +21,94 @@ export const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
   onSelect,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Token[]>([]);
+  const [searchResults, setSearchResults] = useState<TokenWithPool[]>([]);
+
+  // Validate address format
+  const isValidAddress = isAddress(searchQuery);
+
+  const { data: contractData, isLoading: isContractLoading } = useReadContracts(
+    {
+      contracts: [
+        {
+          address: ZEROBANK_LAUNCHPAD_ADDRESS,
+          abi: ZeroBankABI,
+          functionName: "tokenPoolInfo",
+          args: [searchQuery as Address],
+        },
+        {
+          address: searchQuery as Address,
+          abi: erc20Abi,
+          functionName: "symbol",
+        },
+        {
+          address: searchQuery as Address,
+          abi: erc20Abi,
+          functionName: "name",
+        },
+        {
+          address: searchQuery as Address,
+          abi: erc20Abi,
+          functionName: "decimals",
+        },
+      ],
+      query: {
+        enabled: isOpen && isValidAddress,
+      },
+    },
+  );
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchQuery("");
+      setSearchResults([]);
+      return;
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isValidAddress) {
+      setSearchResults([]);
+      return;
+    }
+
+    if (contractData) {
+      const [poolInfoResult, symbolResult, nameResult, decimalsResult] =
+        contractData;
+
+      if (
+        poolInfoResult.status === "success" &&
+        symbolResult.status === "success" &&
+        decimalsResult.status === "success"
+      ) {
+        const [ethVault, tokenVault, borrowedTokenAmount, borrowedRate] =
+          poolInfoResult.result as [bigint, bigint, bigint, bigint];
+
+        const newToken: TokenWithPool = {
+          name:
+            nameResult.status === "success"
+              ? (nameResult.result as string)
+              : "Unknown Token",
+          symbol: symbolResult.result as string,
+          decimals: decimalsResult.result as number,
+          address: searchQuery,
+          poolInfo: {
+            ethVault,
+            tokenVault,
+            borrowedTokenAmount,
+            borrowedRate,
+          },
+        };
+        setSearchResults([newToken]);
+      } else {
+        setSearchResults([]);
+      }
+    }
+  }, [contractData, isValidAddress, searchQuery]);
 
   if (!isOpen) return null;
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-
-    // Mock search logic
-    if (query.length > 0) {
-      setSearchResults([
-        {
-          name: "Meme Token",
-          symbol: "MEME",
-          decimals: 18,
-          address: query,
-        },
-      ]);
-    } else {
-      setSearchResults([]);
-    }
+    setSearchQuery(e.target.value);
   };
 
   return (
@@ -60,9 +140,15 @@ export const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
           </div>
 
           <div className="min-h-[200px] max-h-[300px] overflow-y-auto">
-            {searchResults.length === 0 ? (
+            {isContractLoading && isValidAddress ? (
+              <div className="flex items-center justify-center py-8 text-slate-500">
+                <Loader2 className="animate-spin mr-2" /> Searching...
+              </div>
+            ) : searchResults.length === 0 ? (
               <div className="text-center text-slate-500 py-8">
-                Enter an address to search
+                {isValidAddress
+                  ? "No token found"
+                  : "Enter a valid address to search"}
               </div>
             ) : (
               <div className="space-y-2">
@@ -73,24 +159,71 @@ export const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
                       onSelect(token);
                       onClose();
                     }}
-                    className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-colors group text-left"
+                    className="w-full p-3 rounded-lg hover:bg-white/5 transition-colors group text-left border border-transparent hover:border-slate-700"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold text-white">
-                        {token.symbol[0]}
-                      </div>
-                      <div>
-                        <div className="text-white font-medium">
-                          {token.symbol}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                          {token.symbol[0]}
                         </div>
-                        <div className="text-xs text-slate-400 group-hover:text-slate-300">
-                          {token.name}
+                        <div>
+                          <div className="text-white font-medium">
+                            {token.symbol}
+                          </div>
+                          <div className="text-xs text-slate-400 group-hover:text-slate-300">
+                            {token.name}
+                          </div>
                         </div>
                       </div>
+                      {token.address && (
+                        <div className="text-xs text-slate-500 font-mono">
+                          {token.address.slice(0, 6)}...
+                          {token.address.slice(-4)}
+                        </div>
+                      )}
                     </div>
-                    {token.address && (
-                      <div className="text-xs text-slate-500 font-mono">
-                        {token.address.slice(0, 6)}...{token.address.slice(-4)}
+
+                    {token.poolInfo && (
+                      <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-800/50 text-xs">
+                        <div>
+                          <span className="text-slate-500 block">
+                            ETH Vault
+                          </span>
+                          <span className="text-slate-300 font-mono">
+                            {formatUnits(token.poolInfo.ethVault, 18)} ETH
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">
+                            Token Vault
+                          </span>
+                          <span className="text-slate-300 font-mono">
+                            {formatUnits(
+                              token.poolInfo.tokenVault,
+                              token.decimals,
+                            )}{" "}
+                            {token.symbol}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Borrowed</span>
+                          <span className="text-slate-300 font-mono">
+                            {formatUnits(
+                              token.poolInfo.borrowedTokenAmount,
+                              token.decimals,
+                            )}{" "}
+                            {token.symbol}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Rate</span>
+                          <span className="text-slate-300 font-mono">
+                            {(
+                              Number(token.poolInfo.borrowedRate) / 100
+                            ).toFixed(2)}
+                            %
+                          </span>
+                        </div>
                       </div>
                     )}
                   </button>
