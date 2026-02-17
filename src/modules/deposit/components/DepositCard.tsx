@@ -1,7 +1,12 @@
 import React, { useState } from "react";
-import { ArrowDown, Maximize2, Wallet, Coins } from "lucide-react";
+import { ArrowDown, ChevronDown } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { VALUETOKENOBJECTS } from "../../../const";
+import { TokenSearchModal } from "./TokenSearchModal";
+import { Token } from "../../../interface";
+import { formatUnits } from "viem";
+import { useAccount, useBalance, useConnection } from "wagmi";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -11,23 +16,34 @@ const TokenInput = ({
   label,
   amount,
   setAmount,
-  balance,
-  tokenSymbol,
+
   maxButton = false,
+  tokenSelector,
 }: {
   label: string;
   amount: string;
   setAmount: (val: string) => void;
-  balance: string;
-  tokenSymbol: string;
+
   maxButton?: boolean;
+  tokenSelector: React.ReactNode;
 }) => {
+  const { address } = useConnection();
+  const { data: balance } = useBalance({
+    address,
+  });
+
+  const rawBalance = balance
+    ? formatUnits(balance.value, balance.decimals)
+    : "0";
+
+  const formattedBalance = parseFloat(rawBalance).toFixed(4);
+
   return (
     <div className="flex flex-col gap-2 w-full">
       <div className="flex justify-between text-xs text-slate-400 font-mono uppercase tracking-wider">
         <span>{label}</span>
         <span>
-          Avail. {balance} {tokenSymbol}
+          Balance: {formattedBalance} {balance?.symbol}
         </span>
       </div>
 
@@ -45,23 +61,14 @@ const TokenInput = ({
           <div className="flex items-center gap-2 pr-2">
             {maxButton && (
               <button
-                onClick={() => setAmount(balance)}
+                onClick={() => setAmount(rawBalance)}
                 className="text-xs font-bold text-purple-400 hover:text-purple-300 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 hover:border-purple-500/50 transition-all"
               >
                 MAX
               </button>
             )}
 
-            <button className="flex items-center gap-2 bg-[#1A1B2E] hover:bg-[#252640] text-white px-3 py-1.5 rounded-md border border-slate-700 transition-colors min-w-[100px] justify-between">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-5 h-5 rounded-full ${tokenSymbol === "ETH" ? "bg-blue-500" : "bg-blue-600"} flex items-center justify-center text-[10px]`}
-                >
-                  {tokenSymbol[0]}
-                </div>
-                <span className="font-bold text-sm">{tokenSymbol}</span>
-              </div>
-            </button>
+            {tokenSelector}
           </div>
         </div>
       </div>
@@ -72,6 +79,16 @@ const TokenInput = ({
 export const DepositCard = () => {
   const [depositAmount, setDepositAmount] = useState("");
   const [borrowAmount, setBorrowAmount] = useState("");
+
+  const [selectedDepositToken, setSelectedDepositToken] = useState<Token>(
+    VALUETOKENOBJECTS[0],
+  );
+  const [selectedBorrowToken, setSelectedBorrowToken] = useState<Token | null>(
+    null,
+  );
+
+  const [isDepositDropdownOpen, setIsDepositDropdownOpen] = useState(false);
+  const [isBorrowModalOpen, setIsBorrowModalOpen] = useState(false);
 
   const ltv = 50; // Mock LTV
   const fee = 0; // Mock Fee
@@ -92,9 +109,62 @@ export const DepositCard = () => {
             label="Deposit Asset"
             amount={depositAmount}
             setAmount={setDepositAmount}
-            balance="8.77279"
-            tokenSymbol="ETH"
             maxButton={true}
+            tokenSelector={
+              <div className="relative">
+                <button
+                  onClick={() =>
+                    setIsDepositDropdownOpen(!isDepositDropdownOpen)
+                  }
+                  className="flex items-center gap-2 bg-[#1A1B2E] hover:bg-[#252640] text-white px-3 py-1.5 rounded-md border border-slate-700 transition-colors min-w-[120px] justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={selectedDepositToken.imgsrc}
+                      alt={selectedDepositToken.symbol}
+                      className="w-5 h-5 rounded-full"
+                    />
+                    <span className="font-bold text-sm">
+                      {selectedDepositToken.symbol}
+                    </span>
+                  </div>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform ${isDepositDropdownOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                {isDepositDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setIsDepositDropdownOpen(false)}
+                    ></div>
+                    <div className="absolute top-full right-0 mt-2 w-full min-w-[120px] bg-[#1A1B2E] border border-slate-700 rounded-md shadow-xl z-20 overflow-hidden">
+                      {VALUETOKENOBJECTS.map((token) => (
+                        <button
+                          key={token.symbol}
+                          onClick={() => {
+                            setSelectedDepositToken(token);
+                            setIsDepositDropdownOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[#252640] text-white text-left transition-colors"
+                        >
+                          <img
+                            src={token.imgsrc}
+                            alt={token.symbol}
+                            className="w-5 h-5 rounded-full"
+                          />
+                          <span className="font-bold text-sm">
+                            {token.symbol}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            }
           />
 
           <div className="relative h-8 flex items-center justify-center z-10">
@@ -114,8 +184,26 @@ export const DepositCard = () => {
               label="Borrow Asset"
               amount={borrowAmount}
               setAmount={setBorrowAmount}
-              balance="0"
-              tokenSymbol="BASE"
+              tokenSelector={
+                <button
+                  onClick={() => setIsBorrowModalOpen(true)}
+                  className="flex items-center gap-2 bg-[#1A1B2E] hover:bg-[#252640] text-white px-3 py-1.5 rounded-md border border-slate-700 transition-colors min-w-[120px] justify-between"
+                >
+                  {selectedBorrowToken ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center text-[10px]">
+                        {selectedBorrowToken.symbol[0]}
+                      </div>
+                      <span className="font-bold text-sm">
+                        {selectedBorrowToken.symbol}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-slate-400">Select Asset</span>
+                  )}
+                  <ChevronDown size={14} />
+                </button>
+              }
             />
           </div>
         </div>
@@ -137,6 +225,12 @@ export const DepositCard = () => {
           Short Asset
         </button>
       </div>
+
+      <TokenSearchModal
+        isOpen={isBorrowModalOpen}
+        onClose={() => setIsBorrowModalOpen(false)}
+        onSelect={(token) => setSelectedBorrowToken(token)}
+      />
     </div>
   );
 };
