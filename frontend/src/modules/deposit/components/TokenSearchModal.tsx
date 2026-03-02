@@ -175,14 +175,14 @@ export const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
                 {searchResults.map((token, index) => (
                   <button
                     key={index}
-                    disabled={showPoolInfo && !token.poolInfo}
+                    disabled={hideBasicInfo}
                     onClick={() => {
-                      if (showPoolInfo && !token.poolInfo) return;
+                      if (hideBasicInfo && !token.poolInfo) return;
                       onSelect(token);
                       onClose();
                     }}
                     className={`w-full p-3 rounded-lg transition-colors group text-left border border-transparent ${
-                      showPoolInfo && !token.poolInfo
+                      hideBasicInfo && !token.poolInfo
                         ? "opacity-50 cursor-not-allowed"
                         : "hover:bg-white/5 hover:border-slate-700 cursor-pointer"
                     }`}

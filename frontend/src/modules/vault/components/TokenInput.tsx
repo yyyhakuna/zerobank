@@ -6,6 +6,7 @@ interface TokenInputProps {
   setAmount: (val: string) => void;
   selectedToken: Token | null;
   balance: string;
+  stakedAmount?: string;
   maxButton?: boolean;
   tokenSelector: React.ReactNode;
   readOnly?: boolean;
@@ -17,11 +18,12 @@ export const TokenInput = ({
   setAmount,
   selectedToken,
   balance,
+  stakedAmount,
   maxButton = false,
   tokenSelector,
   readOnly = false,
 }: TokenInputProps) => {
-  const formattedBalance = selectedToken 
+  const formattedBalance = selectedToken
     ? parseFloat(balance || "0").toFixed(4)
     : "0.0000";
 
@@ -49,7 +51,7 @@ export const TokenInput = ({
           <div className="flex items-center gap-2 pr-2">
             {maxButton && (
               <button
-                onClick={() => setAmount(balance)}
+                onClick={() => setAmount(stakedAmount || balance)}
                 className="text-xs font-bold text-purple-400 hover:text-purple-300 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 hover:border-purple-500/50 transition-all"
               >
                 MAX

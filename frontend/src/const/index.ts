@@ -9,3 +9,8 @@ export const VALUETOKENOBJECTS = [
 
 export const ZEROBANK_LAUNCHPAD_ADDRESS =
   "0xe7daca16E12117Ef2D2f7b6Dc2d6D70D6D6c0E85";
+
+export const API_URL = import.meta.env.DEV
+  ? "http://localhost:3000"
+  : "https://api.zerobank.com";
+

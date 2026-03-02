@@ -1,17 +1,34 @@
 import { useMemo } from "react";
-import { useDepositStore } from "../store";
+import { useAccount } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
 import { useUserPositions } from "../hooks/useUserPositions";
+import { useUserTokens } from "../hooks/useUserTokens";
+import { fetchUserPositions } from "../../../services/positions";
 import { PositionRow } from "./PositionRow";
 
 export const PositionsTable = () => {
-  const { selectedBorrowToken } = useDepositStore();
+  const { address } = useAccount();
 
-  const tokens = useMemo(
-    () => (selectedBorrowToken ? [selectedBorrowToken] : []),
-    [selectedBorrowToken],
+  const { data: backendPositions, isLoading: isBackendLoading } = useQuery({
+    queryKey: ["backendPositions", address],
+    queryFn: () => fetchUserPositions(address!),
+    enabled: !!address,
+  });
+
+  const tokenAddresses = useMemo(
+    () => backendPositions?.map((p) => p.tokenAddress) || [],
+    [backendPositions],
   );
 
-  const { positions, isLoading, refetch } = useUserPositions(tokens);
+  const { tokens, isLoading: isTokensLoading } = useUserTokens(tokenAddresses);
+
+  const {
+    positions,
+    isLoading: isPositionsLoading,
+    refetch,
+  } = useUserPositions(tokens);
+
+  const isLoading = isBackendLoading || isTokensLoading || isPositionsLoading;
 
   return (
     <div className="w-full bg-[#151320] border border-slate-800 rounded-2xl p-6 shadow-2xl overflow-hidden">
@@ -51,11 +68,7 @@ export const PositionsTable = () => {
             ) : (
               <tr>
                 <td colSpan={7} className="py-12 text-center text-slate-500">
-                  {selectedBorrowToken
-                    ? isLoading
-                      ? "Loading..."
-                      : "No active positions for this token"
-                    : "Select a token to view positions"}
+                  {isLoading ? "Loading..." : "No active positions"}
                 </td>
               </tr>
             )}

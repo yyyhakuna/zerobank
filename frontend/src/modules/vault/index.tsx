@@ -62,6 +62,12 @@ const VaultPage = () => {
         functionName: "stakeTokenShareTotalSupply",
         args: [selectedToken?.address as Address],
       },
+      {
+        address: selectedToken?.address as Address,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [ZEROBANK_LAUNCHPAD_ADDRESS as Address],
+      },
     ],
     query: {
       enabled: !!address && !!selectedToken?.address,
@@ -110,8 +116,14 @@ const VaultPage = () => {
       toast.success("Stake Successful!");
       setAmount("");
       queryClient.invalidateQueries();
+
+      if (address) {
+        queryClient.invalidateQueries({
+          queryKey: ["backendPositions", address],
+        });
+      }
     }
-  }, [isStakeConfirmed, queryClient]);
+  }, [isStakeConfirmed, queryClient, address]);
 
   const handleAction = () => {
     if (!selectedToken?.address || !amount) return;
@@ -149,6 +161,7 @@ const VaultPage = () => {
   const userShare = (stakingData?.[0]?.result as bigint) || BigInt(0);
   const totalReserve = (stakingData?.[1]?.result as bigint) || BigInt(0);
   const totalSupply = (stakingData?.[2]?.result as bigint) || BigInt(0);
+  const vaultBalance = (stakingData?.[3]?.result as bigint) || BigInt(0);
 
   const stakedAmountRaw =
     totalSupply === BigInt(0)
@@ -158,6 +171,13 @@ const VaultPage = () => {
   const stakedAmount = formatUnits(
     stakedAmountRaw,
     selectedToken?.decimals || 0,
+  );
+
+  console.log();
+
+  console.log(
+    "totalReserve",
+    formatUnits(totalReserve, selectedToken?.decimals || 0),
   );
 
   return (
@@ -238,9 +258,11 @@ const VaultPage = () => {
           selectedToken={selectedToken}
           onSelectToken={() => setIsTokenModalOpen(true)}
           stakedBalance={stakedAmount}
+          walletBalance={rawBalance}
           totalSupply={totalSupply}
           totalReserve={totalReserve}
           userShare={userShare}
+          vaultBalance={vaultBalance}
         />
       )}
       {/* Position Info */}

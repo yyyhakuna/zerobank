@@ -13,10 +13,12 @@ import {
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
+  useAccount,
 } from "wagmi";
 import { useDepositStore } from "../store";
 import { ZEROBANK_LAUNCHPAD_ADDRESS } from "../../../const";
 import ZeroBankABI from "../../../assets/abis/ZeroBank.json";
+import { createPosition } from "../../../services/positions";
 
 const TokenInput = ({
   label,
@@ -86,6 +88,7 @@ const TokenInput = ({
 };
 
 export const DepositCard = () => {
+  const { address, chainId } = useAccount();
   const [depositAmount, setDepositAmount] = useState("");
   const ltv = 50; // Mock LTV
 
@@ -143,6 +146,7 @@ export const DepositCard = () => {
     writeContract,
     data: hash,
     isPending,
+    reset,
   } = useWriteContract({
     mutation: {
       onError: (error) => {
@@ -162,12 +166,47 @@ export const DepositCard = () => {
   useEffect(() => {
     if (isConfirmed) {
       toast.success("Transaction Successful!");
-      queryClient.invalidateQueries();
-      setDepositAmount("");
+
+      const updatePositionAndRefresh = async () => {
+        if (address && selectedBorrowToken?.address && depositAmount && hash) {
+          try {
+            await createPosition({
+              userAddress: address,
+              tokenAddress: selectedBorrowToken.address,
+              ltv: ltv,
+              collateralAmountWei: parseUnits(depositAmount, 18).toString(),
+              txHash: hash,
+              chainId: chainId,
+            });
+            // Invalidate backend positions query after successful creation
+            await queryClient.invalidateQueries({
+              queryKey: ["backendPositions", address],
+            });
+          } catch (err) {
+            console.error("Failed to save position:", err);
+          }
+        }
+
+        queryClient.invalidateQueries();
+        setDepositAmount("");
+        reset();
+      };
+
+      updatePositionAndRefresh();
     } else if (isConfirmError) {
       toast.error("Transaction Failed!");
     }
-  }, [isConfirmed, isConfirmError, queryClient]);
+  }, [
+    isConfirmed,
+    isConfirmError,
+    queryClient,
+    address,
+    selectedBorrowToken,
+    depositAmount,
+    hash,
+    chainId,
+    reset,
+  ]);
 
   const handleShortAsset = () => {
     if (!selectedBorrowToken?.address || !depositAmount) return;
