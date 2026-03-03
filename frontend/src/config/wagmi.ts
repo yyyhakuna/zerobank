@@ -18,9 +18,7 @@ export const wagmiAdapter = new WagmiAdapter({
   projectId,
   networks,
   transports: {
-    [bsc.id]: http(
-      "https://bnb-mainnet.g.alchemy.com/v2/ducClOoRWDB6SorYT5nyq",
-    ),
+    [bsc.id]: http(import.meta.env.VITE_RPC_URL),
   },
 });
 
