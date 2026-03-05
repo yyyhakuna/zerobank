@@ -22,22 +22,26 @@ export const PositionsTable = () => {
 
   const { tokens, isLoading: isTokensLoading } = useUserTokens(tokenAddresses);
 
-  console.log("tokens", tokens);
   const {
     positions,
     isLoading: isPositionsLoading,
     refetch,
-  } = useUserPositions(tokens);
+  } = useUserPositions(tokens, backendPositions ?? []);
 
   const isLoading = isBackendLoading || isTokensLoading || isPositionsLoading;
 
-  console.log("positions", positions);
   return (
     <div className="w-full bg-[#151320] border border-slate-800 rounded-2xl p-6 shadow-2xl overflow-hidden">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-white tracking-wide">
-          POSITIONS
-        </h2>
+        <div>
+          <h2 className="text-xl font-bold text-white tracking-wide">
+            POSITIONS
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Positions with a health factor above 85% will be automatically
+            liquidated.
+          </p>
+        </div>
         <div className="flex gap-2">{/* Filters could go here */}</div>
       </div>
 
@@ -48,13 +52,11 @@ export const PositionsTable = () => {
               <th className="py-3 px-4 font-normal">Pair</th>
               {/* <th className="py-3 px-4 font-normal">Side</th> */}
               <th className="py-3 px-4 font-normal">Size</th>
-              <th className="py-3 px-4 font-normal text-right">Liq. Price</th>
               <th className="py-3 px-4 font-normal text-right">
-                Mark Price (BNB)
+                Liquidation Price
               </th>
-              <th className="py-3 px-4 font-normal text-right">
-                Healthy Factor
-              </th>
+              <th className="py-3 px-4 font-normal text-right">Entry Price</th>
+              <th className="py-3 px-4 font-normal text-right">Profit</th>
               <th className="py-3 px-4 font-normal text-right">Action</th>
             </tr>
           </thead>

@@ -20,6 +20,23 @@ import { ZEROBANK_ADDRESS } from "../../../const";
 import ZeroBankABI from "../../../assets/abis/ZeroBank.json";
 import { createPosition } from "../../../services/positions";
 
+const CHAINLINK_BNB_USD = "0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE";
+const CHAINLINK_ABI = [
+  {
+    inputs: [],
+    name: "latestRoundData",
+    outputs: [
+      { internalType: "uint80", name: "roundId", type: "uint80" },
+      { internalType: "int256", name: "answer", type: "int256" },
+      { internalType: "uint256", name: "startedAt", type: "uint256" },
+      { internalType: "uint256", name: "updatedAt", type: "uint256" },
+      { internalType: "uint80", name: "answeredInRound", type: "uint80" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
 const TokenInput = ({
   label,
   amount,
@@ -107,6 +124,16 @@ export const DepositCard = () => {
   const isValidDepositAmount =
     !!depositAmount && !isNaN(Number(depositAmount)) && Number(depositAmount) > 0;
 
+  const { data: bnbPriceData } = useReadContract({
+    address: CHAINLINK_BNB_USD as Address,
+    abi: CHAINLINK_ABI,
+    functionName: "latestRoundData",
+    query: { staleTime: 1000 * 60 },
+  });
+  const bnbPriceUSD = bnbPriceData
+    ? Number(formatUnits((bnbPriceData as [bigint, bigint, bigint, bigint, bigint])[1], 8))
+    : 0;
+
   const { data: borrowAmountData } = useReadContract({
     address: ZEROBANK_ADDRESS as Address,
     abi: ZeroBankABI,
@@ -142,6 +169,24 @@ export const DepositCard = () => {
   });
   console.log("borrowAmountData", borrowAmountData, "feeData", feeData, "feeError", feeError);
 
+  const { data: livePoolInfoData, refetch: refetchPoolInfo } = useReadContract({
+    address: ZEROBANK_ADDRESS as Address,
+    abi: ZeroBankABI,
+    functionName: "tokenPoolInfo",
+    args: [selectedBorrowToken?.address as Address],
+    query: {
+      enabled: !!selectedBorrowToken?.address,
+    },
+  });
+
+  const livePoolInfo = livePoolInfoData
+    ? (() => {
+        const [ethVault, tokenVault, borrowedTokenAmount, borrowedRate] =
+          livePoolInfoData as [bigint, bigint, bigint, bigint];
+        return { ethVault, tokenVault, borrowedTokenAmount, borrowedRate };
+      })()
+    : selectedBorrowToken?.poolInfo;
+
   const fee = feeData !== undefined ? (Number(feeData) / 100).toFixed(2) : "0.00";
 
   const queryClient = useQueryClient();
@@ -173,6 +218,15 @@ export const DepositCard = () => {
       const updatePositionAndRefresh = async () => {
         if (address && selectedBorrowToken?.address && depositAmount && hash) {
           try {
+            const borrowAmountNum = borrowAmountData
+              ? Number(formatUnits(borrowAmountData as bigint, selectedBorrowToken.decimals))
+              : 0;
+            const depositAmountNum = Number(depositAmount);
+            const entryPriceUsd =
+              borrowAmountNum > 0 && bnbPriceUSD > 0
+                ? ((depositAmountNum * ltv) / 100 / borrowAmountNum) * bnbPriceUSD
+                : undefined;
+
             await createPosition({
               userAddress: address,
               tokenAddress: selectedBorrowToken.address,
@@ -180,6 +234,7 @@ export const DepositCard = () => {
               collateralAmountWei: parseUnits(depositAmount, 18).toString(),
               txHash: hash,
               chainId: chainId,
+              entryPriceUsd,
             });
             // Invalidate backend positions query after successful creation
             await queryClient.invalidateQueries({
@@ -196,6 +251,7 @@ export const DepositCard = () => {
       };
 
       updatePositionAndRefresh();
+      refetchPoolInfo();
     } else if (isConfirmError) {
       toast.error("Transaction Failed!");
     }
@@ -209,6 +265,7 @@ export const DepositCard = () => {
     hash,
     chainId,
     reset,
+    refetchPoolInfo,
   ]);
 
   const handleShortAsset = () => {
@@ -378,19 +435,19 @@ export const DepositCard = () => {
 
         {selectedBorrowToken && (
           <div className="mt-6">
-            {selectedBorrowToken.poolInfo ? (
+            {livePoolInfo ? (
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800/50 text-xs">
                 <div>
                   <span className="text-slate-500 block mb-1">BNB Vault</span>
                   <span className="text-slate-300 font-mono bg-slate-900/50 px-2 py-1 rounded border border-slate-800/50 block w-fit">
-                    {formatUnits(selectedBorrowToken.poolInfo.ethVault, 18)} BNB
+                    {formatUnits(livePoolInfo.ethVault, 18)} BNB
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block mb-1">Token Vault</span>
                   <span className="text-slate-300 font-mono bg-slate-900/50 px-2 py-1 rounded border border-slate-800/50 block w-fit">
                     {formatUnits(
-                      selectedBorrowToken.poolInfo.tokenVault,
+                      livePoolInfo.tokenVault,
                       selectedBorrowToken.decimals,
                     )}{" "}
                     {selectedBorrowToken.symbol}
@@ -400,7 +457,7 @@ export const DepositCard = () => {
                   <span className="text-slate-500 block mb-1">Borrowed</span>
                   <span className="text-slate-300 font-mono bg-slate-900/50 px-2 py-1 rounded border border-slate-800/50 block w-fit">
                     {formatUnits(
-                      selectedBorrowToken.poolInfo.borrowedTokenAmount,
+                      livePoolInfo.borrowedTokenAmount,
                       selectedBorrowToken.decimals,
                     )}{" "}
                     {selectedBorrowToken.symbol}
@@ -409,9 +466,7 @@ export const DepositCard = () => {
                 <div>
                   <span className="text-slate-500 block mb-1">Rate</span>
                   <span className="text-slate-300 font-mono bg-slate-900/50 px-2 py-1 rounded border border-slate-800/50 block w-fit">
-                    {(
-                      Number(selectedBorrowToken.poolInfo.borrowedRate) / 100
-                    ).toFixed(2)}
+                    {(Number(livePoolInfo.borrowedRate) / 100).toFixed(2)}
                     %
                   </span>
                 </div>

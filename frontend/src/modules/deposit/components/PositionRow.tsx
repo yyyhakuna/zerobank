@@ -5,6 +5,7 @@ import {
 } from "wagmi";
 import { Address } from "viem";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@src/lib/cn";
 import { ZEROBANK_ADDRESS } from "../../../const";
 import ZeroBankABI from "../../../assets/abis/ZeroBank.json";
@@ -16,6 +17,7 @@ interface PositionRowProps {
 }
 
 export const PositionRow = ({ position, onSuccess }: PositionRowProps) => {
+  const queryClient = useQueryClient();
   const {
     writeContract,
     data: hash,
@@ -35,6 +37,7 @@ export const PositionRow = ({ position, onSuccess }: PositionRowProps) => {
     }
     if (isConfirmed) {
       toast.success("Position closed successfully!", { id: "close-position" });
+      queryClient.invalidateQueries();
       onSuccess();
     }
     if (writeError) {
@@ -42,7 +45,7 @@ export const PositionRow = ({ position, onSuccess }: PositionRowProps) => {
         id: "close-position",
       });
     }
-  }, [isConfirming, isConfirmed, writeError, onSuccess]);
+  }, [isConfirming, isConfirmed, writeError, onSuccess, queryClient]);
 
   const handleClose = () => {
     try {

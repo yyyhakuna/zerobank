@@ -9,6 +9,7 @@ export interface BackendPosition {
   collateralAmount: string;
   txHash: string;
   chainId: number;
+  entryPriceUsd?: string | null;
   createdAt: string;
 }
 
@@ -19,6 +20,7 @@ export interface CreatePositionInput {
   collateralAmountWei?: string;
   txHash?: string;
   chainId?: number;
+  entryPriceUsd?: number;
 }
 
 export const fetchUserPositions = async (
