@@ -1,8 +1,5 @@
 import { useEffect } from "react";
-import {
-  useWriteContract,
-  useWaitForTransactionReceipt,
-} from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { Address } from "viem";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,7 +26,6 @@ export const PositionRow = ({ position, onSuccess }: PositionRowProps) => {
     useWaitForTransactionReceipt({
       hash,
     });
-
 
   useEffect(() => {
     if (isConfirming) {
@@ -78,8 +74,8 @@ export const PositionRow = ({ position, onSuccess }: PositionRowProps) => {
         {position.pair}
       </td>
       <td className="py-4 px-4 text-slate-300">{position.size}</td>
-      <td className="py-4 px-4 text-right text-slate-300">{position.entry}</td>
-      <td className="py-4 px-4 text-right text-slate-300">{position.mark}</td>
+      <td className="py-4 px-4 text-right text-slate-300">{position.liquidationPrice}</td>
+      <td className="py-4 px-4 text-right text-slate-300">{position.entryPrice}</td>
       <td className={cn("py-4 px-4 text-right font-medium", position.pnlColor)}>
         {position.pnl}
       </td>
