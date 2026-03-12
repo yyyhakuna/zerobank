@@ -18,6 +18,7 @@ contract zeroBankV1 is Ownable, ReentrancyGuard{
     address public proxy;
     bool public liquidatePublic;
     uint public lenderFee;
+    uint public fee;
     IUniswapV2Router02 public uniswapRouter = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
     
 
@@ -25,6 +26,8 @@ contract zeroBankV1 is Ownable, ReentrancyGuard{
     mapping (address => bool) public lpClaim;
 
     mapping (address => bool) public liquidateQualification;
+    mapping (address => uint) public point;
+    bool public campaign;
 
 
 //borrow variable 
@@ -55,10 +58,11 @@ contract zeroBankV1 is Ownable, ReentrancyGuard{
     event AddLiquidity(address indexed token,address indexed user, uint ethAmount,uint tokenAmount,uint time);
     event DeployToken(address token,string name,string symbol, address creator,string description, string image, string website,string twLink,string tgLink, uint ethAmount,uint tokenAmount,uint time);
 
-    constructor(address payable _Feeto,uint _lendFee)Ownable(msg.sender)
+    constructor(address payable _Feeto,uint _lendFee,uint _fee)Ownable(msg.sender)
     {
         lenderFee = _lendFee;
         taxRecipient = _Feeto;
+        fee = _fee;
 
     }
 
@@ -99,6 +103,15 @@ contract zeroBankV1 is Ownable, ReentrancyGuard{
     function updateLendTax(uint256 _lendFee) external onlyOwner{
         require(_lendFee <= 1000, "Tax too high");
         lenderFee = _lendFee;
+    }
+
+    function updateFee(uint256 _fee) external onlyOwner{
+        require(_fee <= 100, "Tax too high");
+        fee = _fee;
+    }
+
+    function setCampaign(bool _status) external onlyOwner{
+        campaign = _status;
     }
 
 
@@ -255,7 +268,8 @@ function stakeToken(address _token, uint _amount) public {
 
     function stakeEthBorrowAsset(address _token, uint _percent) public payable nonReentrant {
         require((_percent > 0)&&(_percent < 71),"require percent 0---100");
-        uint amount = msg.value;
+        uint amount = msg.value * (1000 -fee) / 1000;
+        taxRecipient.transfer(msg.value * fee / 1000);
         require(amount > 0,"require more than 0wei");
         address user = msg.sender;
 
@@ -279,8 +293,14 @@ function stakeToken(address _token, uint _amount) public {
         _beforeBorrow(_token);
         require((_percent > 0)&&(_percent < 71),"require percent 0---100");
         //get data
-        uint amount = msg.value;
-        require(amount > 0,"require more than 0wei");
+        uint amount = msg.value * (1000 -fee) / 1000;
+        taxRecipient.transfer(msg.value * fee / 1000);
+        if(campaign){
+            point[msg.sender] += msg.value * fee / 1000;
+        }
+        
+        
+        require(amount > 1000,"require more than 1000wei");
         address user = msg.sender;
         uint [] memory amountOut = getETHPrice(_token, amount);
         uint tokenDebtAmount = amountOut[1] * _percent / 100;
@@ -316,8 +336,9 @@ function stakeToken(address _token, uint _amount) public {
     function shortTokenByAmount(address _token,uint _amount,uint _dirSli) public payable nonReentrant {
         //get data
         _beforeBorrow(_token);
-        uint amount = msg.value;
-        require(amount > 0,"require more than 0wei");
+        uint amount = msg.value * (1000 -fee) / 1000;
+        taxRecipient.transfer(msg.value * fee / 1000);
+        require(amount > 1000,"require more than 1000wei");
         address user = msg.sender;
         IERC20 token = IERC20(_token);
         //borrow token and update data

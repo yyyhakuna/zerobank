@@ -38,8 +38,8 @@ export interface PositionData {
   side: "Borrow" | "Stake" | "Unknown";
   sideColor: string;
   size: string;
-  entry: string;
-  mark: string;
+  liquidationPrice: string;
+  entryPrice: string;
   pnl: string;
   pnlColor: string;
   raw: {
@@ -52,7 +52,10 @@ export interface PositionData {
   };
 }
 
-export const useUserPositions = (tokens: Token[], backendPositions: BackendPosition[] = []) => {
+export const useUserPositions = (
+  tokens: Token[],
+  backendPositions: BackendPosition[] = [],
+) => {
   const { address } = useConnection();
   console.log("tokens", tokens);
 
@@ -116,12 +119,16 @@ export const useUserPositions = (tokens: Token[], backendPositions: BackendPosit
         const priceInBNB = Number(formatUnits(price, 18));
         console.log("priceInBNB", priceInBNB.toFixed(18));
 
-        const liquidatedPriceInBNB = Number(formatUnits(liquidatedPrice, 18));
+        // Contract only computes liquidatedPrice when healthyFactor < 8000.
+        // If it's 0, derive it from the formula: liquidatedPrice = price * 8000 / healthyFactor
+        const effectiveLiquidatedPrice =
+          liquidatedPrice === 0n && healthyFactor > 0n && price > 0n
+            ? (price * 8000n) / healthyFactor
+            : liquidatedPrice;
+        const liquidatedPriceInBNB = Number(formatUnits(effectiveLiquidatedPrice, 18));
 
         const usdPerToken =
-          bnbPriceInUSD > 0 && priceInBNB > 0
-            ? priceInBNB * bnbPriceInUSD
-            : 0;
+          bnbPriceInUSD > 0 && priceInBNB > 0 ? priceInBNB * bnbPriceInUSD : 0;
         const liquidatedUSDPrice =
           bnbPriceInUSD > 0 && liquidatedPriceInBNB > 0
             ? liquidatedPriceInBNB * bnbPriceInUSD
@@ -144,7 +151,9 @@ export const useUserPositions = (tokens: Token[], backendPositions: BackendPosit
         const tokenAmountNum = Number(formatUnits(tokenAmount, token.decimals));
 
         const backendPosition = backendPositions.find(
-          (p) => p.tokenAddress.toLowerCase() === (token.address ?? "").toLowerCase(),
+          (p) =>
+            p.tokenAddress.toLowerCase() ===
+            (token.address ?? "").toLowerCase(),
         );
         const storedEntryPriceUsd = backendPosition?.entryPriceUsd
           ? Number(backendPosition.entryPriceUsd)
@@ -186,8 +195,8 @@ export const useUserPositions = (tokens: Token[], backendPositions: BackendPosit
           side,
           sideColor,
           size: `${tokenAmountNum.toFixed(4)} ${token.symbol}`,
-          entry: formatUSDPrice(liquidatedUSDPrice),
-          mark: formatUSDPrice(entryPriceUsd),
+          liquidationPrice: formatUSDPrice(liquidatedUSDPrice),
+          entryPrice: formatUSDPrice(entryPriceUsd),
           pnl: formatPnL(pnlUSD),
           pnlColor: pnlUSD >= 0 ? "text-green-500" : "text-red-500",
           raw: {
